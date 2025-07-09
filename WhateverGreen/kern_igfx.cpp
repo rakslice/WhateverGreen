@@ -55,6 +55,7 @@ void IGFX::init() {
 		case CPUInfo::CpuGeneration::Haswell:
 			currentGraphics = &kextIntelHD5000;
 			currentFramebuffer = &kextIntelAzulFb;
+			modForceWakeWorkaround.enabled = true;
 			break;
 		case CPUInfo::CpuGeneration::Broadwell:
 			currentGraphics = &kextIntelBDW;

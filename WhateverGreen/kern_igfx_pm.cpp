@@ -293,7 +293,6 @@ bool IGFX::ForceWakeWorkaround::forceWakeWaitAckFallback(uint32_t d, uint32_t va
 void IGFX::ForceWakeWorkaround::forceWake(void*, uint8_t set, uint32_t dom, uint32_t ctx) {
 	// ctx 2: IRQ, 1: normal
 	
-	uint32_t ack_reg = (BaseDeviceInfo::get().cpuGeneration == CPUInfo::CpuGeneration::Haswell)? FORCEWAKE_ACK_HSW : ackForDom(d);
 	uint32_t ack_exp = set << ctx;
 	uint32_t mask = 1 << ctx;
 
@@ -301,6 +300,8 @@ void IGFX::ForceWakeWorkaround::forceWake(void*, uint8_t set, uint32_t dom, uint
 	
 	for (unsigned d = DOM_FIRST; d <= DOM_LAST; d <<= 1)
 	if (dom & d) {
+		uint32_t ack_reg = (BaseDeviceInfo::get().cpuGeneration == CPUInfo::CpuGeneration::Haswell)? FORCEWAKE_ACK_HSW : ackForDom(d);
+
 		callbackIGFX->writeRegister32(callbackIGFX->defaultController(), regForDom(d), wr);
 		IOPause(100);
 		if (!pollRegister(ack_reg, ack_exp, mask, FORCEWAKE_ACK_TIMEOUT_MS) &&

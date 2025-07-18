@@ -70,6 +70,8 @@ constexpr uint32_t FORCEWAKE_ACK_MEDIA_GEN9 = 0x0D88;
 constexpr uint32_t FORCEWAKE_ACK_RENDER_GEN9 = 0x0D84;
 constexpr uint32_t FORCEWAKE_ACK_BLITTER_GEN9 = 0x130044;
 
+constexpr uint32_t FORCEWAKE_ACK_HSW = 0x130044;
+
 enum FORCEWAKE_DOM_BITS : unsigned {
 	DOM_RENDER = 0b001,
 	DOM_MEDIA = 0b010,
@@ -260,16 +262,17 @@ bool IGFX::ForceWakeWorkaround::pollRegister(uint32_t reg, uint32_t val, uint32_
 bool IGFX::ForceWakeWorkaround::forceWakeWaitAckFallback(uint32_t d, uint32_t val, uint32_t mask) {
 	unsigned pass = 1;
 	bool ack = false;
+	uint32_t ack_reg = (BaseDeviceInfo::get().cpuGeneration == CPUInfo::CpuGeneration::Haswell)? FORCEWAKE_ACK_HSW : ackForDom(d);
 	auto controller = callbackIGFX->defaultController();
-	
+
 	do {
-		pollRegister(ackForDom(d), 0, FORCEWAKE_KERNEL_FALLBACK, FORCEWAKE_ACK_TIMEOUT_MS);
+		pollRegister(ack_reg, 0, FORCEWAKE_KERNEL_FALLBACK, FORCEWAKE_ACK_TIMEOUT_MS);
 		callbackIGFX->writeRegister32(controller, regForDom(d), fw_set(FORCEWAKE_KERNEL_FALLBACK));
 		
 		IODelay(10 * pass);
-		pollRegister(ackForDom(d), FORCEWAKE_KERNEL_FALLBACK, FORCEWAKE_KERNEL_FALLBACK, FORCEWAKE_ACK_TIMEOUT_MS);
+		pollRegister(ack_reg, FORCEWAKE_KERNEL_FALLBACK, FORCEWAKE_KERNEL_FALLBACK, FORCEWAKE_ACK_TIMEOUT_MS);
 		
-		ack = (callbackIGFX->readRegister32(controller, ackForDom(d)) & mask) == val;
+		ack = (callbackIGFX->readRegister32(controller, ack_reg) & mask) == val;
 
 		callbackIGFX->writeRegister32(controller, regForDom(d), fw_clear(FORCEWAKE_KERNEL_FALLBACK));
 	} while (!ack && pass++ < 10);
@@ -290,17 +293,19 @@ bool IGFX::ForceWakeWorkaround::forceWakeWaitAckFallback(uint32_t d, uint32_t va
 void IGFX::ForceWakeWorkaround::forceWake(void*, uint8_t set, uint32_t dom, uint32_t ctx) {
 	// ctx 2: IRQ, 1: normal
 	
+	uint32_t ack_reg = (BaseDeviceInfo::get().cpuGeneration == CPUInfo::CpuGeneration::Haswell)? FORCEWAKE_ACK_HSW : ackForDom(d);
 	uint32_t ack_exp = set << ctx;
 	uint32_t mask = 1 << ctx;
+
 	uint32_t wr = ack_exp | (1 << ctx << 16);
 	
 	for (unsigned d = DOM_FIRST; d <= DOM_LAST; d <<= 1)
 	if (dom & d) {
 		callbackIGFX->writeRegister32(callbackIGFX->defaultController(), regForDom(d), wr);
 		IOPause(100);
-		if (!pollRegister(ackForDom(d), ack_exp, mask, FORCEWAKE_ACK_TIMEOUT_MS) &&
+		if (!pollRegister(ack_reg, ack_exp, mask, FORCEWAKE_ACK_TIMEOUT_MS) &&
 			!forceWakeWaitAckFallback(d, ack_exp, mask) &&
-			!pollRegister(ackForDom(d), ack_exp, mask, FORCEWAKE_ACK_TIMEOUT_MS))
+			!pollRegister(ack_reg, ack_exp, mask, FORCEWAKE_ACK_TIMEOUT_MS))
 			PANIC(log, "ForceWake timeout for domain %s, expected 0x%x", strForDom(dom), ack_exp);
 	}
 }
